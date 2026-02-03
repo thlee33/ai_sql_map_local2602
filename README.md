@@ -1,5 +1,68 @@
 # ai_sql_map_local2602
 
-Local LLM과 DuckDB를 활용한 온디바이스 공간 분석 지도 서비스  
+폐쇄망에서도 동작되는 Local LLM과 DuckDB를 활용한 온디바이스 공간 분석 지도 서비스  
 
-🗺️ On-Device GIS AI Agent"인터넷 연결 없이, 내 PC 안에서 테라바이트급 지도를 읽고 분석하는 지능형 공간 비서"본 프로젝트는 데이터 보안과 비용 효율성을 극대화하기 위해 **로컬 LLM(Qwen 2.5)**과 **고성능 공간 데이터베이스(DuckDB)**를 결합한 온디바이스 GIS 분석 환경을 구축하는 것을 목표로 합니다. 🚀 주요 기능 (Key Features)자연어 기반 공간 질의: "서울역 근처 소방서 찾아줘"와 같은 일상 언어로 지도 분석 가능 100% 온디바이스 추론: 외부 API 호출 없이 모든 연산이 로컬에서 수행되어 데이터 유출 원천 차단 테라바이트급 데이터 처리: GeoParquet와 DuckDB를 활용하여 서버 없이도 대용량 공간 정보 고속 조회 실시간 좌표 변환: 국내 표준(EPSG:5179)과 글로벌 표준(EPSG:4326) 간의 정밀한 실시간 변환 지원 🏗️ 시스템 아키텍처 (Architecture)시스템은 데이터 처리의 효율성과 로컬 추론의 안정성을 위해 다음과 같은 최신 기술 스택을 채택하였습니다. 구성 요소기술 스택주요 역할Inference EngineOllama로컬 환경 내 LLM 실행 및 모델 관리 인프라 LLMQwen 2.5 (7B)자연어 질의 분석 및 정형 데이터(JSON) 추출 Spatial DBDuckDB (Spatial Ext.)In-process OLAP 엔진을 활용한 고속 공간 쿼리 수행 Data FormatGeoParquet공간 정보에 최적화된 컬럼 지향 저장 형식 활용 BackendFastAPI비동기 API 통신 및 LLM/DB 로직 통합 FrontendMapLibre GL JSWebGL 기반의 고성능 대화형 지도 렌더링 📊 성능 테스트 결과 (Performance)"롯데마트 서울역점에서 가장 가까운 소방서" 쿼리를 기준으로 3가지 모델의 성능을 비교 분석하였습니다.순위모델평균 응답 시간최소/최대성공률🥇 1로컬 Ollama (qwen2.5:7b)0.550초0.289s / 2.835s100%🥈 2회사 서버 (gpt-oss-20b)1.656초1.643s / 1.690s100%🥉 3로컬 Ollama (gpt-oss:20b)6.179초5.531s / 9.060s100%Insight: 로컬에서 구동되는 Qwen 2.5 (7B) 모델이 회사 서버 모델 대비 약 3배 빠른 속도를 보여주며, 온디바이스 GIS 환경에 가장 적합한 모델임을 확인했습니다.🛠️ 핵심 분석 파이프라인 (Workflow)의도 파악 (Extract): 사용자의 질의에서 mart_name 등 핵심 키워드를 JSON으로 추출합니다. 공간 연산 (Calculate): DuckDB의 ST_Distance 함수를 사용하여 최단 거리 시설물을 단숨에 계산합니다. 좌표 변환 (Convert): pyproj를 통해 EPSG:5179 좌표를 글로벌 웹 표준인 EPSG:4326으로 정밀하게 변환합니다. 시각화 (Render): 분석 결과를 GeoJSON으로 변환하여 MapLibre GL JS 지도 위에 즉시 렌더링합니다. 🔒 데이터 주권 및 보안 (Security)이 시스템은 폐쇄망(Air-gapped) 환경에서도 완벽하게 작동하도록 설계되었습니다. 모든 연산이 사용자 PC 내부에서 완결되므로, 민감한 시설물 위치나 기업 기밀이 담긴 분석 로직이 외부로 유출될 가능성은 **0%**입니다. 📅 향후 과제 (Future Roadmap)RAG(검색 증강 생성) 도입: 법규 및 지역 특성 데이터를 학습하여 '지능형 공간 분석 비서'로 진화 경로 탐색(Routing) 결합: 단순 직선거리를 넘어 실제 이동 경로 분석 기능 추가
+# On-Device Geo AI 
+
+[cite_start]본 프로젝트는 데이터 보안과 비용 효율성을 극대화하기 위해 **로컬 LLM(Qwen 2.5)**과 **고성능 공간 데이터베이스(DuckDB)**를 결합한 **온디바이스 GIS 분석 환경**을 구축하는 것을 목표로 합니다. [cite: 3]
+
+---
+
+## 🚀 주요 기능 (Key Features)
+
+* [cite_start]**자연어 기반 공간 질의**: "서울역 근처 소방서 찾아줘"와 같은 일상 언어로 지도 분석 가능 [cite: 3]
+* [cite_start]**100% 온디바이스 LLM**: 모든 연산이 사용자 PC 내부에서 이루어져 외부 서버 유출 우려 없음 [cite: 3]
+* [cite_start]**DB없이 대규모 데이터 처리**: GeoParquet 형식을 활용하여 대용량 공간 정보 고속 조회 [cite: 3]
+
+---
+
+## 🏗️ 시스템 아키텍처 (Architecture)
+
+[cite_start]데이터 처리 효율성과 로컬 추론의 안정성을 위해 다음과 같은 기술 스택을 사용합니다. [cite: 3]
+
+| 구성 요소 | 기술 스택 | 주요 역할 |
+| :--- | :--- | :--- |
+| **Inference Engine** | **Ollama** | 로컬 환경 내 LLM 실행 및 관리 인프라 |
+| **LLM** | **Qwen 2.5 (7B)** | 자연어 질의 분석 및 정형 데이터(JSON) 추출 |
+| **Spatial DB** | **DuckDB (Spatial Ext.)** | In-process OLAP 엔진을 활용한 고속 공간 쿼리 수행 |
+| **Data Format** | **GeoParquet** | 공간 정보에 최적화된 컬럼 지향 저장 형식 활용 |
+| **Backend** | **FastAPI** | 비동기 API 통신 및 LLM/DB 로직 통합 |
+| **Frontend** | **MapLibre GL JS** | WebGL 기반의 고성능 대화형 지도 렌더링 |
+
+---
+
+## 📊 성능 테스트 결과 (Performance)
+
+[cite_start]"롯데마트 서울역점에서 가장 가까운 소방서" 쿼리를 기준으로 3가지 모델의 성능을 비교 분석하였습니다. [cite: 4]
+
+| 순위 | 모델 | 평균 응답 시간 | 최소/최대 | 성공률 |
+| :--- | :--- | :--- | :--- | :--- |
+| **🥇 1** | **로컬 Ollama (qwen2.5:7b)** | **0.550초** | 0.289s / 2.835s | 100% |
+| 🥈 2 | 내부 서버 (gpt-oss-20b) | 1.656초 | 1.643s / 1.690s | 100% |
+| 🥉 3 | 로컬 Ollama (gpt-oss:20b) | 6.179초 | 5.531s / 9.060s | 100% |
+
+> [cite_start]**Insight:** 로컬에서 구동되는 **Qwen 2.5 (7B)** 모델이 서버 모델 대비 약 **3배 빠른 속도**를 보여주며, 온디바이스 GIS 환경에 가장 적합한 모델임을 확인했습니다. [cite: 4]
+
+---
+
+## 🛠️ 핵심 분석 파이프라인 (Workflow)
+
+[cite_start]사용자의 자연어 질의가 시각적 결과물로 변환되는 4단계 과정입니다. [cite: 3]
+
+1.  [cite_start]**의도 파악 (Extract)**: LLM이 질의에서 마트 이름 등 핵심 키워드를 JSON으로 추출합니다. [cite: 3]
+2.  [cite_start]**공간 연산 (Calculate)**: DuckDB의 `ST_Distance` 함수로 최단 거리 시설물을 계산합니다. [cite: 3]
+3.  [cite_start]**좌표 변환 (Convert)**: `pyproj`를 통해 EPSG:5179 좌표를 글로벌 웹 표준인 EPSG:4326으로 변환합니다. [cite: 3]
+4.  [cite_start]**시각화 (Render)**: 분석 결과를 GeoJSON으로 변환하여 MapLibre GL JS 지도 위에 렌더링합니다. [cite: 3]
+
+---
+
+## 🔒 데이터 주권 및 보안 (Security)
+
+[cite_start]이 시스템은 폐쇄망(Air-gapped) 환경에서도 완벽하게 작동하도록 설계되었습니다. [cite: 3] [cite_start]모든 연산이 사용자 PC 내부에서 완결되므로, 민감한 시설물 위치나 비즈니스 쿼리가 외부 서버로 유출될 가능성은 **0%**입니다. [cite: 3]
+
+---
+
+## 📅 향후 과제 (Future Roadmap)
+
+* [cite_start]**경로 탐색(Routing) 결합**: 유클리드 기반 근린분석 외에 다양한 공간 분석 기능 추가 [cite: 3]
+ 
