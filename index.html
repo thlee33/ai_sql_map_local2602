@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Local GIS AI Dashboard</title>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        body { margin: 0; display: flex; height: 100vh; font-family: 'Pretendard', -apple-system, sans-serif; }
+        #sidebar { width: 350px; padding: 25px; background: #1e272e; color: white; display: flex; flex-direction: column; }
+        #map { flex: 1; }
+        #chat { flex: 1; overflow-y: auto; background: #2f3640; border-radius: 8px; padding: 15px; margin: 20px 0; font-size: 14px; line-height: 1.6; }
+        input { padding: 12px; border: none; border-radius: 5px; background: #f5f6fa; width: 100%; box-sizing: border-box; }
+        button { margin-top: 10px; padding: 12px; background: #44bd32; color: white; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; width: 100%; }
+        button:hover { background: #3da129; }
+        .legend { margin-top: 10px; font-size: 12px; background: #2f3640; padding: 10px; border-radius: 5px; }
+        .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .message { margin-bottom: 12px; padding: 8px; border-radius: 4px; }
+        .question { color: #9c88ff; background: rgba(156, 136, 255, 0.1); }
+        .success { color: #4cd137; background: rgba(76, 209, 55, 0.1); }
+        .error { color: #e84118; background: rgba(232, 65, 24, 0.1); }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2>🗺️ GIS AI Agent</h2>
+        <div class="legend">
+            <div><span class="dot" style="background:#e74c3c"></span> 마트 (출발지)</div>
+            <div><span class="dot" style="background:#3498db"></span> 소방서 (목적지)</div>
+        </div>
+        <div id="chat">
+            <div class="message">분석 요청을 기다리고 있습니다...</div>
+        </div>
+        <input type="text" id="q" placeholder="예: 롯데마트 서울역점에서 가장 가까운 소방서" onkeypress="if(event.keyCode==13) ask()">
+        <button onclick="ask()">🔍 분석 및 시각화</button>
+    </div>
+    <div id="map"></div>
+
+    <script>
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    'vworld-raster': {
+                        type: 'raster',
+                        tiles: ['http://xdworld.vworld.kr:8080/2d/Base/service/{z}/{x}/{y}.png'],
+                        tileSize: 256
+                    }
+                },
+                layers: [{ id: 'vworld-layer', type: 'raster', source: 'vworld-raster' }]
+            },
+            center: [126.9784, 37.566],
+            zoom: 13
+        });
+
+        async function ask() {
+            const q = document.getElementById('q');
+            const chat = document.getElementById('chat');
+            const text = q.value.trim();
+            
+            if (!text) return;
+            
+            // 질문 표시
+            chat.innerHTML += `<div class="message question"><b>Q:</b> ${text}</div>`;
+            chat.scrollTop = chat.scrollHeight;
+            
+            try {
+                const res = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({text})
+                });
+                
+                if (!res.ok) {
+                    throw new Error(`서버 오류: ${res.status}`);
+                }
+                
+                const data = await res.json();
+                console.log('Response:', data);
+                
+                if (data.type === 'FeatureCollection' && data.features) {
+                    const summary = data.summary || '분석 성공! 지도에 위치를 표시했습니다.';
+                    chat.innerHTML += `<div class="message success"><b>A:</b> ${summary}</div>`;
+                    updateMap(data);
+                } else if (data.answer_text) {
+                    chat.innerHTML += `<div class="message error"><b>A:</b> ${data.answer_text}</div>`;
+                } else if (data.error) {
+                    chat.innerHTML += `<div class="message error"><b>오류:</b> ${data.error}</div>`;
+                } else {
+                    chat.innerHTML += `<div class="message error"><b>A:</b> 데이터를 찾지 못했습니다.</div>`;
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                chat.innerHTML += `<div class="message error"><b>오류:</b> ${err.message}</div>`;
+            }
+            
+            q.value = '';
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        function updateMap(geojson) {
+            // 기존 레이어 제거
+            if (map.getLayer('gis-layer')) {
+                map.removeLayer('gis-layer');
+            }
+            if (map.getSource('gis-data')) {
+                map.removeSource('gis-data');
+            }
+
+            // 새 데이터 추가
+            map.addSource('gis-data', { type: 'geojson', data: geojson });
+            
+            map.addLayer({
+                id: 'gis-layer',
+                type: 'circle',
+                source: 'gis-data',
+                paint: {
+                    'circle-radius': 14,
+                    'circle-stroke-width': 3,
+                    'circle-stroke-color': '#fff',
+                    'circle-color': [
+                        'match', ['get', 'type'],
+                        'mart', '#e74c3c',
+                        'firestation', '#3498db',
+                        '#000'
+                    ]
+                }
+            });
+
+            // 클릭 이벤트
+            map.on('click', 'gis-layer', (e) => {
+                const props = e.features[0].properties;
+                new maplibregl.Popup()
+                    .setLngLat(e.features[0].geometry.coordinates)
+                    .setHTML(`<strong>${props.display_name}</strong><br><small>${props.type === 'mart' ? '마트' : '소방서'}</small>`)
+                    .addTo(map);
+            });
+
+            // 지도 범위 조정
+            const bounds = new maplibregl.LngLatBounds();
+            geojson.features.forEach(f => bounds.extend(f.geometry.coordinates));
+            map.fitBounds(bounds, { padding: 100, maxZoom: 15 });
+        }
+    </script>
+</body>
+</html>
